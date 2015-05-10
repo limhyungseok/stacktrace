@@ -18,6 +18,7 @@ void stacktrace_fprint(struct stacktrace *st, FILE *);
 
 #ifdef __cplusplus
 struct stacktrace *stacktrace_get_exc();
+int stacktrace_get_excbt(void ***backtrace);
 #endif
 
 #ifdef __cplusplus

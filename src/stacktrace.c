@@ -285,8 +285,13 @@ void stacktrace_fprint(struct stacktrace *trace, FILE *f) {
 static pthread_once_t _stacktrace_once = PTHREAD_ONCE_INIT;
 static pthread_key_t _stacktrace_key;
 
+
+#define STACKTRACE_MAX_COUNT 256
+
 struct stacktrace_tls {
     struct stacktrace *trace;
+    void *stack[STACKTRACE_MAX_COUNT];
+    int stack_count;
 };
 
 static void _stacktrace_tls_free(void *p) {
@@ -305,6 +310,7 @@ static struct stacktrace_tls *_stacktrace_get_tls() {
     if (tls == NULL) {
         tls = malloc(sizeof(struct stacktrace_tls));
         tls->trace = NULL;
+        tls->stack_count = 0;
         pthread_setspecific(_stacktrace_key, tls);
     }
     return tls;
@@ -316,8 +322,15 @@ void _stacktrace_set_exc() {
         stacktrace_free(tls->trace);
     }
     tls->trace = stacktrace_get(2);
+    tls->stack_count = backtrace(tls->stack, STACKTRACE_MAX_COUNT);
 }
 
 struct stacktrace *_stacktrace_get_exc() {
     return _stacktrace_get_tls()->trace;
+}
+
+int stacktrace_get_excbt(void ***backtrace) {
+    struct stacktrace_tls *tls = _stacktrace_get_tls();
+    *backtrace = tls->stack;
+    return tls->stack_count;
 }
