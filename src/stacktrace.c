@@ -2,6 +2,7 @@
 #include <string.h>
 #include <unistd.h>
 #include <unwind.h>
+#include <execinfo.h>
 
 #include <stacktrace.h>
 #include <pthread.h>
@@ -260,12 +261,26 @@ void stacktrace_resolve(struct stacktrace *trace) {
     read_map(trace);
 
     for (i = 0; i < trace->frames_len; i++) {
-        struct file_map *file;
-        file = _find_file(trace, (unsigned long long)trace->frames[i].addr);
-        if (file == NULL) {
-            continue;
+        struct stacktrace_frame *frame = &trace->frames[i];
+        char **symbols = backtrace_symbols(&frame->addr, 1);
+        if (symbols != NULL && *symbols != NULL && **symbols != '?') {
+            char *symbols_tok;
+            char *symbols_tok_saveptr;
+            symbols_tok = strtok_r(*symbols, ":", &symbols_tok_saveptr);
+            frame->file = strdup(symbols_tok ? symbols_tok : "??");
+            symbols_tok = strtok_r(NULL, "\t", &symbols_tok_saveptr);
+            frame->line = symbols_tok ? atoi(symbols_tok) : 0;
+            symbols_tok = strtok_r(NULL, "(", &symbols_tok_saveptr);
+            frame->func = strdup(symbols_tok ? symbols_tok : "??");
+            free(symbols);
+        } else {
+            struct file_map *file;
+            file = _find_file(trace, (unsigned long long)trace->frames[i].addr);
+            if (file == NULL) {
+                continue;
+            }
+            _addr2line(&trace->frames[i], file);
         }
-        _addr2line(&trace->frames[i], file);
     }
 }
 
@@ -327,10 +342,4 @@ void _stacktrace_set_exc() {
 
 struct stacktrace *_stacktrace_get_exc() {
     return _stacktrace_get_tls()->trace;
-}
-
-int stacktrace_get_excbt(void ***backtrace) {
-    struct stacktrace_tls *tls = _stacktrace_get_tls();
-    *backtrace = tls->stack;
-    return tls->stack_count;
 }
