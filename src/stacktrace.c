@@ -91,6 +91,7 @@ static _Unwind_Reason_Code collect(struct _Unwind_Context *ctx, void *p) {
 
 struct stacktrace *stacktrace_get(unsigned skip) {
     char procf[512];
+    char *new_exec = NULL;
     int len, n;
 
     struct stacktrace *trace = malloc(sizeof(struct stacktrace));
@@ -108,7 +109,13 @@ struct stacktrace *stacktrace_get(unsigned skip) {
     snprintf(procf, sizeof(procf), "/proc/%d/exe", (int)getpid());
 
     for (len = 512; ; len *= 2) {
-        trace->exe = realloc(trace->exe, len);
+        new_exec = realloc(trace->exe, len);
+        if (new_exec == NULL) {
+            free(trace->exe);
+            break ;
+        } else {
+            trace->exe = new_exec;
+        }
 
         n = readlink(procf, trace->exe, len);
         if (n == -1) {
